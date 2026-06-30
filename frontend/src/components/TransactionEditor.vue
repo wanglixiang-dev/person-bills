@@ -21,14 +21,18 @@ const form = reactive({
   id: undefined as number | undefined,
   type: 'expense' as EntryType,
   amount: '',
-  categoryId: 1,
+  categoryId: 0,
   transactionDate: new Date().toISOString().slice(0, 10),
   note: '',
+  saving: false,
 })
 
 const title = computed(() => (form.id ? '编辑账单' : '新增账单'))
 const categories = computed(() => ledger.categoriesByType(form.type))
-const canSave = computed(() => yuanToCents(form.amount) > 0 && Boolean(form.categoryId) && Boolean(form.transactionDate))
+const canSave = computed(() => {
+  const cents = yuanToCents(form.amount)
+  return cents > 0 && cents <= 999_999_999 && Boolean(form.categoryId) && Boolean(form.transactionDate) && !form.saving
+})
 
 watch(
   () => props.open,
@@ -38,15 +42,15 @@ watch(
       form.id = props.transaction.id
       form.type = props.transaction.type
       form.amount = centsToYuan(props.transaction.amount)
-      form.categoryId = props.transaction.categoryId
-      form.transactionDate = props.transaction.transactionDate
-      form.note = props.transaction.note
+      form.categoryId = props.transaction.category_id
+      form.transactionDate = props.transaction.transaction_date
+      form.note = props.transaction.note || ''
       return
     }
     form.id = undefined
     form.type = 'expense'
     form.amount = ''
-    form.categoryId = ledger.expenseCategories[0]?.id || 1
+    form.categoryId = ledger.expenseCategories[0]?.id || 0
     form.transactionDate = `${ledger.currentMonth}-${String(new Date().getDate()).padStart(2, '0')}`
     form.note = ''
   },
@@ -57,22 +61,27 @@ watch(
   (type) => {
     const available = ledger.categoriesByType(type)
     if (!available.some((category) => category.id === form.categoryId)) {
-      form.categoryId = available[0]?.id || form.categoryId
+      form.categoryId = available[0]?.id || 0
     }
   },
 )
 
-const save = () => {
+const save = async () => {
   if (!canSave.value) return
-  ledger.saveTransaction({
-    id: form.id,
-    type: form.type,
-    amount: yuanToCents(form.amount),
-    categoryId: form.categoryId,
-    transactionDate: form.transactionDate,
-    note: form.note.trim(),
-  })
-  emit('saved')
+  form.saving = true
+  try {
+    await ledger.saveTransaction({
+      id: form.id,
+      type: form.type,
+      amount: yuanToCents(form.amount),
+      category_id: form.categoryId,
+      transaction_date: form.transactionDate,
+      note: form.note.trim() || null,
+    })
+    emit('saved')
+  } finally {
+    form.saving = false
+  }
 }
 </script>
 

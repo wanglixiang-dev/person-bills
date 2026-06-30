@@ -286,6 +286,27 @@ button:disabled {
   gap: 8px;
 }
 
+.filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.filters .segmented {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.filters select {
+  min-width: 0;
+  min-height: 46px;
+  border: 1px solid #d7e0ea;
+  border-radius: 8px;
+  padding: 0 8px;
+  color: #344054;
+  background: #ffffff;
+}
+
 .transaction-row {
   min-height: 64px;
   display: grid;
@@ -519,6 +540,55 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   font-size: 14px;
+}
+
+.category-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.category-admin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.category-admin-row.inactive {
+  opacity: 0.6;
+}
+
+.ranking-list,
+.trend-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ranking-row,
+.trend-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid #edf1f5;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.trend-row {
+  grid-template-columns: 70px 1fr 1fr;
+}
+
+.ranking-row span,
+.trend-row span,
+.ranking-row strong,
+.trend-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
 }
 
 .category-pill.income {

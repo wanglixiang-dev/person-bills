@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@vitejs/plugin-vue": "^5.2.4",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "typescript": "^5.7.2",
+    "@playwright/test": "^1.49.1",
     "vue-tsc": "^2.2.0"
   }
 }

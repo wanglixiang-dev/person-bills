@@ -7,27 +7,50 @@ import { useAuthStore } from '../stores/auth'
 const router = useRouter()
 const auth = useAuthStore()
 
-const mode = ref<'code' | 'password'>('code')
-const email = ref('demo@example.com')
+const pageMode = ref<'register' | 'login'>('register')
+const loginMode = ref<'code' | 'password'>('code')
+const email = ref(`demo-${Date.now()}@example.com`)
 const code = ref('')
-const password = ref('')
-const notice = ref('演示验证码固定为 246810')
+const password = ref('Password123')
+const notice = ref('开发环境验证码固定为 246810')
+const loading = ref(false)
 
 const canSubmit = computed(() => {
   if (!email.value.includes('@')) return false
-  return mode.value === 'code' ? code.value.length === 6 : password.value.length >= 4
+  if (pageMode.value === 'register') return code.value.length === 6 && (!password.value || password.value.length >= 8)
+  return loginMode.value === 'code' ? code.value.length === 6 : password.value.length >= 8
 })
 
-const sendCode = () => {
-  const sent = auth.sendCode()
-  code.value = sent
-  notice.value = `验证码已填入：${sent}`
+const sendCode = async () => {
+  loading.value = true
+  try {
+    const sent = await auth.sendCode(email.value, pageMode.value === 'register' ? 'register' : 'login')
+    code.value = sent || ''
+    notice.value = sent ? `验证码已填入：${sent}` : '验证码已发送'
+  } catch (err: any) {
+    notice.value = err.message || '验证码发送失败'
+  } finally {
+    loading.value = false
+  }
 }
 
-const submit = () => {
+const submit = async () => {
   if (!canSubmit.value) return
-  auth.login(email.value)
-  router.push({ name: 'home' })
+  loading.value = true
+  try {
+    if (pageMode.value === 'register') {
+      await auth.register(email.value, code.value, password.value)
+    } else if (loginMode.value === 'code') {
+      await auth.loginByCode(email.value, code.value)
+    } else {
+      await auth.loginByPassword(email.value, password.value)
+    }
+    await router.push({ name: 'home' })
+  } catch (err: any) {
+    notice.value = err.message || '登录失败'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -44,11 +67,16 @@ const submit = () => {
 
       <div class="login-card">
         <div class="segmented wide">
-          <button type="button" :class="{ active: mode === 'code' }" @click="mode = 'code'">
+          <button type="button" :class="{ active: pageMode === 'register' }" @click="pageMode = 'register'">注册</button>
+          <button type="button" :class="{ active: pageMode === 'login' }" @click="pageMode = 'login'">登录</button>
+        </div>
+
+        <div v-if="pageMode === 'login'" class="segmented wide">
+          <button type="button" :class="{ active: loginMode === 'code' }" @click="loginMode = 'code'">
             <Mail :size="16" />
             验证码
           </button>
-          <button type="button" :class="{ active: mode === 'password' }" @click="mode = 'password'">
+          <button type="button" :class="{ active: loginMode === 'password' }" @click="loginMode = 'password'">
             <KeyRound :size="16" />
             密码
           </button>
@@ -59,21 +87,23 @@ const submit = () => {
           <input v-model="email" type="email" placeholder="user@example.com" />
         </label>
 
-        <label v-if="mode === 'code'" class="field">
+        <label v-if="pageMode === 'register' || loginMode === 'code'" class="field">
           <span>验证码</span>
           <div class="inline-input">
             <input v-model="code" inputmode="numeric" maxlength="6" placeholder="6 位验证码" />
-            <button type="button" @click="sendCode">获取</button>
+            <button type="button" :disabled="loading" @click="sendCode">获取</button>
           </div>
         </label>
 
-        <label v-else class="field">
+        <label v-if="pageMode === 'register' || loginMode === 'password'" class="field">
           <span>密码</span>
-          <input v-model="password" type="password" placeholder="输入任意 4 位以上密码" />
+          <input v-model="password" type="password" placeholder="至少 8 位，包含字母和数字" />
         </label>
 
         <p class="form-note">{{ notice }}</p>
-        <button class="primary-button" type="button" :disabled="!canSubmit" @click="submit">登录 / 注册</button>
+        <button class="primary-button" type="button" :disabled="!canSubmit || loading" @click="submit">
+          {{ pageMode === 'register' ? '注册并进入' : '登录' }}
+        </button>
       </div>
     </section>
   </main>

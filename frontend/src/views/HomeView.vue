@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { LogOut, Plus, Settings2, Trash2 } from 'lucide-vue-next'
 import CategoryPieChart from '../components/CategoryPieChart.vue'
 import TransactionEditor from '../components/TransactionEditor.vue'
 import { useAuthStore } from '../stores/auth'
 import { useLedgerStore } from '../stores/ledger'
-import type { Transaction } from '../types'
+import type { EntryType, Transaction } from '../types'
 import { formatDateLabel, formatMoney, formatMonth } from '../utils/format'
 
 const router = useRouter()
@@ -17,10 +17,14 @@ const editorOpen = ref(false)
 const editingTransaction = ref<Transaction | null>(null)
 
 const summaryCards = computed(() => [
-  { label: '收入', value: formatMoney(ledger.summary.income), tone: 'income' },
-  { label: '支出', value: formatMoney(ledger.summary.expense), tone: 'expense' },
+  { label: '收入', value: formatMoney(ledger.summary.income_total), tone: 'income' },
+  { label: '支出', value: formatMoney(ledger.summary.expense_total), tone: 'expense' },
   { label: '结余', value: formatMoney(ledger.summary.balance), tone: 'balance' },
 ])
+
+const chartData = computed(() =>
+  ledger.categoryRatios.map((item) => ({ name: item.category_name, amount: item.amount, ratio: item.ratio })),
+)
 
 const openCreate = () => {
   editingTransaction.value = null
@@ -32,9 +36,9 @@ const openEdit = (transaction: Transaction) => {
   editorOpen.value = true
 }
 
-const remove = (transaction: Transaction) => {
-  if (window.confirm(`删除 ${ledger.categoryName(transaction.categoryId)} ${formatMoney(transaction.amount)}？`)) {
-    ledger.deleteTransaction(transaction.id)
+const remove = async (transaction: Transaction) => {
+  if (window.confirm(`删除 ${transaction.category_name} ${formatMoney(transaction.amount)}？`)) {
+    await ledger.deleteTransaction(transaction.id)
   }
 }
 
@@ -43,10 +47,23 @@ const closeEditor = () => {
   editingTransaction.value = null
 }
 
-const logout = () => {
-  auth.logout()
-  router.push({ name: 'login' })
+const logout = async () => {
+  await auth.logout()
+  await router.push({ name: 'login' })
 }
+
+const applyFilter = async () => {
+  await ledger.loadHomeData()
+}
+
+const setTypeFilter = async (type: EntryType | '') => {
+  ledger.filters.type = type
+  await applyFilter()
+}
+
+onMounted(() => {
+  ledger.loadHomeData()
+})
 </script>
 
 <template>
@@ -85,13 +102,44 @@ const logout = () => {
           <h2>分类支出占比</h2>
           <span v-if="ledger.categoryRatios.length">{{ ledger.categoryRatios.length }} 类支出</span>
         </div>
-        <CategoryPieChart :data="ledger.categoryRatios" />
+        <CategoryPieChart :data="chartData" />
+        <div v-if="ledger.categoryRanking.length" class="ranking-list">
+          <div v-for="item in ledger.categoryRanking" :key="item.category_id" class="ranking-row">
+            <span>{{ item.rank }}. {{ item.category_name }}</span>
+            <strong>{{ formatMoney(item.amount) }} · {{ item.ratio }}%</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title">
+          <h2>近6个月趋势</h2>
+        </div>
+        <div class="trend-list">
+          <div v-for="item in ledger.sixMonthTrend" :key="item.month" class="trend-row">
+            <span>{{ item.month }}</span>
+            <strong>收 {{ formatMoney(item.income_total) }}</strong>
+            <strong>支 {{ formatMoney(item.expense_total) }}</strong>
+          </div>
+        </div>
       </section>
 
       <section class="panel list-panel">
         <div class="section-title">
           <h2>账单列表</h2>
           <span>{{ ledger.monthTransactions.length }} 笔</span>
+        </div>
+
+        <div class="filters">
+          <div class="segmented">
+            <button type="button" :class="{ active: ledger.filters.type === '' }" @click="setTypeFilter('')">全部</button>
+            <button type="button" :class="{ active: ledger.filters.type === 'expense' }" @click="setTypeFilter('expense')">支出</button>
+            <button type="button" :class="{ active: ledger.filters.type === 'income' }" @click="setTypeFilter('income')">收入</button>
+          </div>
+          <select v-model.number="ledger.filters.category_id" @change="applyFilter">
+            <option :value="null">全部分类</option>
+            <option v-for="category in ledger.categories" :key="category.id" :value="category.id">{{ category.name }}</option>
+          </select>
         </div>
 
         <div v-if="ledger.monthTransactions.length" class="transaction-list">
@@ -104,8 +152,8 @@ const logout = () => {
             <div class="transaction-main">
               <div class="category-dot" :class="transaction.type"></div>
               <div>
-                <strong>{{ ledger.categoryName(transaction.categoryId) }}</strong>
-                <span>{{ transaction.note || '无备注' }} · {{ formatDateLabel(transaction.transactionDate) }}</span>
+                <strong>{{ transaction.category_name }}</strong>
+                <span>{{ transaction.note || '无备注' }} · {{ formatDateLabel(transaction.transaction_date) }}</span>
               </div>
             </div>
             <div class="transaction-side">
@@ -125,7 +173,7 @@ const logout = () => {
         </div>
       </section>
 
-      <button class="fab" type="button" aria-label="新增账单" @click="openCreate">
+      <button class="fab" type="button" aria-label="新增账单" :disabled="ledger.loading || !ledger.categories.length" @click="openCreate">
         <Plus :size="28" />
       </button>
     </section>
